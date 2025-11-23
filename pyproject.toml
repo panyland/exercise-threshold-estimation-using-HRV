@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "matplotlib>=3.10.6",
+    "neurokit2>=0.2.12",
+    "nolds>=0.6.2",
     "numpy>=2.3.3",
     "pandas>=2.3.3",
     "scikit-learn>=1.7.2",

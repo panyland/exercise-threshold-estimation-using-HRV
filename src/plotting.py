@@ -73,8 +73,6 @@ def plot_confusion_matrix(cm, y_test, output_dir='plots/results'):
 
 
 def plot_importances(im, features, output_dir='plots/results'):
-    features = ['sdnn','rmssd','sampen', 'lf','hf','lf_hf','total_power']
-
     plt.figure(figsize=(10, 4))
     plt.bar(features, im, color='skyblue')
     plt.xlabel('Feature', fontsize=12)

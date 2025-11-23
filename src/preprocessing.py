@@ -147,3 +147,48 @@ def create_classification_dataset(df, n=100, sampling_rate=4, interpolate=False)
         result_df = result_df[result_df.get('At_vt', 0) == 0].reset_index(drop=True)
 
     return result_df[['RR', 'Sub_vt1', 'Mid_vt', 'Supra_vt2']]
+
+
+def create_additional_intervals(intervals: pd.DataFrame) -> pd.DataFrame:
+    intervals_copy = intervals.copy()
+
+    # Sort
+    intervals_copy['class_id'] = intervals_copy[['Sub_vt1', 'Mid_vt', 'Supra_vt2']].idxmax(axis=1) # Helper for sorting
+    intervals_copy = intervals_copy.sort_values('class_id').reset_index(drop=True)
+    intervals_copy = intervals_copy.drop(columns=['class_id'])
+
+    additional_intervals = []
+
+    for i in range(len(intervals_copy) - 1):
+        current_row = intervals_copy.iloc[i]
+        next_row = intervals_copy.iloc[i+1]
+        
+        # Check if both intervals have the same labels
+        current_labels = current_row[['Sub_vt1', 'Mid_vt', 'Supra_vt2']].values
+        next_labels = next_row[['Sub_vt1', 'Mid_vt', 'Supra_vt2']].values
+        
+        # Only create additional interval if both have identical labels
+        if np.array_equal(current_labels, next_labels):
+            # Take last half of current interval and first half of next interval
+            current_rr = current_row['RR']
+            next_rr = next_row['RR']
+            
+            half_length = len(current_rr) // 2
+            
+            # Combine last half of previous with first half of next
+            combined_rr = current_rr[-half_length:] + next_rr[:half_length]
+            
+            # Create new row with combined RR interval and same labels
+            new_row = {
+                'RR': combined_rr,
+                'Sub_vt1': current_labels[0],
+                'Mid_vt': current_labels[1], 
+                'Supra_vt2': current_labels[2]
+            }
+            
+            additional_intervals.append(new_row)
+
+    additional_df = pd.DataFrame(additional_intervals)
+    result_df = pd.concat([intervals, additional_df], ignore_index=True)
+
+    return result_df
