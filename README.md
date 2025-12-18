@@ -1,31 +1,23 @@
-# HRV-Based Intensity Zone Classification Using Machine Learning
+# HRV-Based Aerobic/Anaerobic Threshold Estimation Using Machine Learning
 
 ## Overview
-This project investigates the use of **heart rate variability (HRV)** to classify exercise intensity zones. The central aim is to determine whether short RR-interval sequences (~1 minute in the current dataset) can reliably indicate the intensity zone of exercise. Such an approach could enable the identification of **lactate and ventilatory thresholds** using HRV alone during graded exercise tests.
+This project investigates the use of **heart rate variability (HRV)** to identify exercise intensity zones using **machine learning**. The central aim is to determine whether short RR-interval sequences (approximately 1 minute in the current dataset) can reliably indicate exercise intensity zones. Such an approach could enable the identification of **lactate and ventilatory thresholds** using HRV alone during graded exercise tests.
 
 ## Objectives
-- **Data preprocessing and cleaning** to ensure quality input  
-- **Feature extraction** from RR-intervals, including time-domain and frequency-domain metrics  
-- **Classification using Random Forest models**, tested across both 2-class and 3-class setups  
-- **Hyperparameter tuning and feature selection** to optimize model performance
-
-### Practical use
-1. Graded test with HRV measurement (e.g., on a Wattbike) to identify thresholds  
-2. Follow-up test with **finer workload increments** to improve resolution of threshold detection  
-3. Repeat this process to enhance precision in threshold detection ?  
+- Develop a data preprocessing pipeline to ensure high-quality input  
+- Extract features from RR-intervals, including standard time-domain metrics and measures such as **DFA-alpha1**  
+- Develop a **Random Forest** model to predict exercise intensity zones based on features calculated from RR-interval sequences  
+- Create an API to enable practical testing and integration with wearable devices  
 
 ## Data
-Data were collected from **incremental cycle ergometer tests** where ventilatory thresholds (VT1 and VT2) were identified between workload steps. The dataset includes:  
+The data currently used for development were collected from **incremental cycle ergometer tests**, during which ventilatory thresholds (VT1 and VT2) were identified. The dataset includes:  
 - **Power output**  
 - **RR-intervals**  
 - **VO₂ measurements**  
 - **Ventilatory thresholds**  
 
-The study involved **18 subjects**, with data sourced from the [PhysioNet ACTES dataset](https://physionet.org/content/actes-cycloergometer-exercise/1.0.0/).
-
-Model development is currently ongoing.
+The dataset comprises **18 subjects** and is sourced from the [PhysioNet ACTES dataset](https://physionet.org/content/actes-cycloergometer-exercise/1.0.0/).
 
 ## Future Work
-- Extend classification methods to include **lactate thresholds**  
-- Validate the model across **broader populations** and better testing protocols  
-- Explore integration with **wearable sensor systems** for real-world applications  
+- Extend classification methods to include lactate thresholds  
+- Validate the model across larger populations and datasets with improved graded testing protocols  

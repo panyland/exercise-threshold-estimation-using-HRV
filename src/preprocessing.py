@@ -136,7 +136,7 @@ def create_classification_dataset(df, n=100, sampling_rate=4, interpolate=False)
         result_df = grouped.copy()
 
         # Keep only valid non-At_vt samples
-        result_df = result_df[result_df['At_vt'] == 0]
+        #result_df = result_df[result_df['At_vt'] == 0]
         result_df = result_df[['RR', 'Sub_vt1', 'Mid_vt', 'Supra_vt2']].reset_index(drop=True)
         result_df = result_df[result_df['RR'].apply(len) >= n].copy()
         result_df['RR'] = result_df['RR'].apply(lambda x: x[-n:])

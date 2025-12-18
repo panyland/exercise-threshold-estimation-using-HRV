@@ -42,10 +42,10 @@ def compute_features(rr: np.ndarray, fs: float = 4.0, include_freq: bool = False
     dfa_alpha1 = calculate_dfa_alpha1(rr)
 
     features = {
-        "sdnn": sdnn,
-        "rmssd": rmssd,
-        "sampen": sampen,
-        "poincare_sd": poincare,
+        #"sdnn": sdnn,
+        #"rmssd": rmssd,
+        #"sampen": sampen,
+        #"poincare_sd": poincare,
         "dfa_alpha1": dfa_alpha1
     }
 
