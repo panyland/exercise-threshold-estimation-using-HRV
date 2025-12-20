@@ -1,15 +1,19 @@
+import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def plot_subject_data(data, output_dir='plots/descriptive'):
+def plot_subject_data(data: pd.DataFrame, output_dir='plots/descriptive'):
+    """
+    Plot RR intervals and VO2 against power for each subject with marked VT1 and VT2 thresholds.
 
+    """
     for id_value, group in data.groupby('ID'):
         vt1_powers = group.loc[group['vt1_marker'] == 1, 'power'].unique()
         vt2_powers = group.loc[group['vt2_marker'] == 1, 'power'].unique()
 
-        # ----------RR and Power----------
+        # RR and Power
         fig, ax1 = plt.subplots()
         ax1.plot(group['time'], group['RR'], color='tab:blue')
         ax1.set_xlabel('Time (s)')
@@ -31,7 +35,7 @@ def plot_subject_data(data, output_dir='plots/descriptive'):
         plt.savefig(f'{output_dir}/plot_RR_power_{id_value}.png')
         plt.close()
 
-        # ----------VO2 and Power----------
+        # VO2 and Power
         fig, ax1 = plt.subplots()
         ax1.plot(group['time'], group['VO2'], color='tab:green')
         ax1.set_xlabel('Time (s)')
@@ -55,6 +59,12 @@ def plot_subject_data(data, output_dir='plots/descriptive'):
 
 
 def plot_confusion_matrix(cm, y_test, output_dir='plots/results'):
+    """
+    Plot the confusion matrix of classification result.
+    Parameters:
+    - cm: Confusion matrix
+    - y_test: True labels
+    """
     plt.figure(figsize=(5, 4))
     sns.heatmap(
         cm,
@@ -73,6 +83,12 @@ def plot_confusion_matrix(cm, y_test, output_dir='plots/results'):
 
 
 def plot_importances(im, features, output_dir='plots/results'):
+    """
+    Plot feature importances from the Random Forest classifier.
+    Parameters:
+    - im: Importance values
+    - features: Feature names
+    """
     plt.figure(figsize=(10, 4))
     plt.bar(features, im, color='skyblue')
     plt.xlabel('Feature', fontsize=12)
