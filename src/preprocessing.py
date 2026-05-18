@@ -94,12 +94,14 @@ def label_rr_intervals(df: pd.DataFrame) -> pd.DataFrame:
     return result_df.reset_index(drop=True)
 
 
-def create_classification_dataset(df: pd.DataFrame, n=100) -> pd.DataFrame:
+def create_classification_dataset(df: pd.DataFrame, n: int = 100, stride: int = None) -> pd.DataFrame:
     """
     Create a dataset suitable for classification by aggregating RR intervals and their labels.
     Parameters:
-    - n: Number of RR intervals to include in each sequence
-
+    - n: Window size — number of RR intervals per sequence.
+    - stride: Sliding window step size. If None, takes only the last n beats per (ID, power)
+              group (original behaviour). Set e.g. to 50 for 50%-overlapping windows, which
+              multiplies sample count without fabricating data.
     """
     df = df.copy()
     grouped = (
@@ -115,15 +117,32 @@ def create_classification_dataset(df: pd.DataFrame, n=100) -> pd.DataFrame:
     )
     result_df = grouped.copy()
 
-    result_df = result_df[['RR', 'Sub_vt1', 'Mid_vt', 'Supra_vt2']].reset_index(drop=True)
+    # Exclude power levels exactly at threshold boundaries before dropping At_vt
+    result_df = result_df[result_df['At_vt'] == 0]
     result_df = result_df[result_df['RR'].apply(len) >= n].copy()
-    result_df['RR'] = result_df['RR'].apply(lambda x: x[-n:])
-    result_df = result_df[result_df['RR'].apply(lambda x: not any(pd.isna(v) for v in x))].copy()
 
-    if 'At_vt' in result_df.columns:
-        result_df = result_df[result_df.get('At_vt', 0) == 0].reset_index(drop=True)
+    if stride is None:
+        result_df['RR'] = result_df['RR'].apply(lambda x: x[-n:])
+        result_df = result_df[result_df['RR'].apply(lambda x: not any(pd.isna(v) for v in x))].copy()
+        return result_df[['ID', 'power', 'RR', 'Sub_vt1', 'Mid_vt', 'Supra_vt2']].reset_index(drop=True)
 
-    return result_df[['RR', 'Sub_vt1', 'Mid_vt', 'Supra_vt2']]
+    rows = []
+    for _, row in result_df.iterrows():
+        rr = row['RR']
+        start = 0
+        while start + n <= len(rr):
+            window = rr[start:start + n]
+            if not any(pd.isna(v) for v in window):
+                rows.append({
+                    'ID': row['ID'],
+                    'power': row['power'],
+                    'RR': window,
+                    'Sub_vt1': row['Sub_vt1'],
+                    'Mid_vt': row['Mid_vt'],
+                    'Supra_vt2': row['Supra_vt2'],
+                })
+            start += stride
+    return pd.DataFrame(rows).reset_index(drop=True)
 
 
 def create_additional_intervals(df: pd.DataFrame) -> pd.DataFrame:

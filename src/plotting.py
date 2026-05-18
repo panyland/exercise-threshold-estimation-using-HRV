@@ -58,12 +58,13 @@ def plot_subject_data(data: pd.DataFrame, output_dir='plots/descriptive'):
         plt.close()
 
 
-def plot_confusion_matrix(cm, y_test, output_dir='plots/results'):
+def plot_confusion_matrix(cm, y_test, output_dir='plots/results', suffix=''):
     """
     Plot the confusion matrix of classification result.
     Parameters:
     - cm: Confusion matrix
     - y_test: True labels
+    - suffix: appended to the output filename (e.g. '_xgboost')
     """
     plt.figure(figsize=(5, 4))
     sns.heatmap(
@@ -76,24 +77,23 @@ def plot_confusion_matrix(cm, y_test, output_dir='plots/results'):
     )
     plt.xlabel('Predicted label', fontsize=12)
     plt.ylabel('True label', fontsize=12)
-    plt.title('Random Forest Classification', fontsize=14)
     plt.tight_layout()
-    plt.savefig(f'{output_dir}/confusion_matrix.png', dpi=300)
+    plt.savefig(f'{output_dir}/confusion_matrix{suffix}.png', dpi=300)
     plt.close()
 
 
-def plot_importances(im, features, output_dir='plots/results'):
+def plot_importances(im, features, output_dir='plots/results', suffix=''):
     """
-    Plot feature importances from the Random Forest classifier.
+    Plot feature importances from a tree-based classifier.
     Parameters:
     - im: Importance values
     - features: Feature names
+    - suffix: appended to the output filename (e.g. '_xgboost')
     """
     plt.figure(figsize=(10, 4))
     plt.bar(features, im, color='skyblue')
     plt.xlabel('Feature', fontsize=12)
-    plt.ylabel('Gini importance', fontsize=12)
-    plt.title('Feature Importance', fontsize=14)
+    plt.ylabel('Importance', fontsize=12)
     plt.tight_layout()
-    plt.savefig(f'{output_dir}/feature_importance.png', dpi=300)
+    plt.savefig(f'{output_dir}/feature_importance{suffix}.png', dpi=300)
     plt.close()

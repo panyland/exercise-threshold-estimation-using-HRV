@@ -77,13 +77,15 @@ def extract_hrv_features(classification_data: pd.DataFrame) -> pd.DataFrame:
     """
     features = []
 
-    label_cols = [c for c in classification_data.columns if c != "RR"]
+    label_cols = [c for c in classification_data.columns if c not in ('RR', 'ID', 'power')]
 
     for _, row in classification_data.iterrows():
         rr = row["RR"]
         feats = compute_features(rr)
         for label in label_cols:
             feats[label] = row[label]
+        if 'ID' in classification_data.columns:
+            feats['ID'] = row['ID']
         features.append(feats)
 
     return pd.DataFrame(features)
