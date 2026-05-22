@@ -299,6 +299,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-# Try interpolation and frequency domain features again
-# LSTM and raw zero-centered RR intervals?
