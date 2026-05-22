@@ -11,3 +11,4 @@ wheels/
 
 # Project context for Claude
 CLAUDE.md
+.claude/

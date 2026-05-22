@@ -145,6 +145,40 @@ def create_classification_dataset(df: pd.DataFrame, n: int = 100, stride: int = 
     return pd.DataFrame(rows).reset_index(drop=True)
 
 
+def extract_resting_intervals(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Return pre-exercise resting beats (power == 0, before the first non-zero power row)
+    for each subject. Call this before remove_pre_post_periods so the rows still exist.
+    """
+    result_frames = []
+    for _, group in df.groupby('ID'):
+        group = group.sort_values('time').reset_index(drop=True)
+        first_exercise = group[group['power'] > 0]
+        if first_exercise.empty:
+            continue
+        resting = group.iloc[:first_exercise.index[0]]
+        resting = resting[resting['power'] == 0]
+        if len(resting) > 0:
+            result_frames.append(resting)
+    return pd.concat(result_frames, ignore_index=True) if result_frames else pd.DataFrame()
+
+
+def create_resting_windows(resting_df: pd.DataFrame, n: int = 100) -> pd.DataFrame:
+    """
+    Build one n-beat feature-extraction window per subject from their last n resting beats.
+    Subjects with fewer than n resting beats are skipped.
+    """
+    rows = []
+    for subject_id, group in resting_df.groupby('ID'):
+        rr_vals = [v for v in group['RR'].tolist() if not pd.isna(v)]
+        if len(rr_vals) >= n:
+            rows.append({'ID': subject_id, 'RR': rr_vals[-n:]})
+        else:
+            print(f"  Warning: subject {subject_id} has only {len(rr_vals)} resting beats "
+                  f"(need {n}) — skipped from resting baseline")
+    return pd.DataFrame(rows)
+
+
 def create_additional_intervals(df: pd.DataFrame) -> pd.DataFrame:
     """
     Create additional RR interval sequences by combining halves of adjacent intervals with identical labels.

@@ -1,3 +1,7 @@
+import json
+import os
+
+import joblib
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -16,7 +20,9 @@ from preprocessing import (
     replace_missing_beats,
     label_rr_intervals,
     create_classification_dataset,
-    create_additional_intervals
+    create_additional_intervals,
+    extract_resting_intervals,
+    create_resting_windows,
 )
 from plotting import (
     plot_subject_data,
@@ -24,7 +30,22 @@ from plotting import (
     plot_importances,
 )
 
-FEATURE_COLS = ['sdnn', 'rmssd', 'sampen', 'poincare_sd1', 'poincare_sd2', 'dfa_alpha1']
+# Set a feature to True to include it in training, False to exclude.
+# Disabled features are never computed.
+FEATURES = {
+    'mean_rr':      False,   # mean RR interval (heart rate proxy)
+    'sdnn':         True,
+    'rmssd':        True,
+    'sampen':       True,
+    'poincare_sd1': True,
+    'poincare_sd2': True,
+    'dfa_alpha1':   True,
+    'lf_power':     False,   # frequency domain — interpolated; may be noisy during exercise
+    'hf_power':     False,
+    'lf_hf_ratio':  False,
+}
+FEATURE_COLS = [k for k, v in FEATURES.items() if v]
+
 WINDOW_SIZE = 100
 STRIDE = 50   # 50% overlapping windows; set to None to revert to one window per power step
 
@@ -69,27 +90,23 @@ def apply_normalization(features_df, baseline_mean, baseline_std, feature_cols):
     return result
 
 
-def normalize_train_features(features_df, feature_cols):
+def normalize_with_resting(features_df, resting_features, pop_std, feature_cols):
     """
-    Normalize each training subject's features by their own Sub-VT1 baseline.
-    Augmented samples (NaN ID) fall back to the population-level Sub-VT1 statistics.
+    Normalize exercise features using each subject's pre-exercise resting baseline.
+
+    Centering: per-subject resting mean (removes individual differences at rest).
+    Scaling: population resting std across all training subjects (consistent scale).
+    Augmented samples (NaN ID) fall back to the population resting mean.
     """
     result = features_df.copy()
+    rest_by_subject = resting_features.set_index('ID')[feature_cols]
+    pop_mean = resting_features[feature_cols].mean()
 
-    # Population fallback for augmented samples that have no subject ID
-    pop_sub = features_df[features_df['Sub_vt1'] == 1]
-    pop_mean, pop_std = compute_baseline_stats(
-        pop_sub if len(pop_sub) > 0 else features_df, feature_cols
-    )
-
-    for _, group in features_df.dropna(subset=['ID']).groupby('ID'):
+    for subject_id, group in features_df.dropna(subset=['ID']).groupby('ID'):
         idx = group.index
-        sub_rows = group[group['Sub_vt1'] == 1]
-        mean, std = compute_baseline_stats(
-            sub_rows if len(sub_rows) > 0 else pop_sub, feature_cols
-        )
+        subj_mean = rest_by_subject.loc[subject_id] if subject_id in rest_by_subject.index else pop_mean
         result.loc[idx, feature_cols] = (
-            (features_df.loc[idx, feature_cols] - mean) / std
+            (features_df.loc[idx, feature_cols] - subj_mean) / pop_std
         ).values
 
     nan_id = features_df['ID'].isna()
@@ -166,7 +183,7 @@ def estimate_thresholds(test_data, probas, rf_classes):
 # LOSO cross-validation
 # ---------------------------------------------------------------------------
 
-def run_loso(classification_data, subjects):
+def run_loso(classification_data, subjects, resting_windows):
     subject_ids = sorted(classification_data['ID'].unique())
     base_cols = ['ID', 'power', 'RR', 'Sub_vt1', 'Mid_vt', 'Supra_vt2']
 
@@ -189,18 +206,20 @@ def run_loso(classification_data, subjects):
         print(f"  Training counts (post-augmentation): {fold_counts}")
 
         # Extract features once per fold
-        train_features = extract_hrv_features(train_data_aug)
-        test_features  = extract_hrv_features(test_data)
+        train_features = extract_hrv_features(train_data_aug, FEATURE_COLS)
+        test_features  = extract_hrv_features(test_data, FEATURE_COLS)
 
-        # --- Normalization (disabled for this dataset) ---
-        # Normalization requires a reliable Sub-VT1 / resting baseline per subject.
-        # Several subjects in this dataset have no Sub-VT1 windows (VT1 < minimum
-        # recorded power step), causing the fallback to population stats to mismatch
-        # the per-subject-normalised training features → catastrophic accuracy drop.
-        # Re-enable once a dataset with a pre-test resting measurement is available:
-        #   train_features = normalize_train_features(train_features, FEATURE_COLS)
-        #   test_mean, test_std = compute_baseline_stats(<resting_features>, FEATURE_COLS)
-        #   test_features = apply_normalization(test_features, test_mean, test_std, FEATURE_COLS)
+        # --- Resting-based normalization (disabled) ---
+        # Centering by resting HRV hurt accuracy on this heterogeneous dataset:
+        # atypical resting baselines in some subjects inverted the exercise signal.
+        # Re-enable when a larger, more homogeneous dataset with resting data is available.
+        # train_rest = all_resting_features[all_resting_features['ID'] != test_subject]
+        # test_rest  = all_resting_features[all_resting_features['ID'] == test_subject]
+        # _, pop_std = compute_baseline_stats(train_rest, FEATURE_COLS)
+        # train_features = normalize_with_resting(train_features, train_rest, pop_std, FEATURE_COLS)
+        # test_rest_mean = test_rest[FEATURE_COLS].iloc[0]
+        # test_features = test_features.copy()
+        # test_features[FEATURE_COLS] = (test_features[FEATURE_COLS] - test_rest_mean) / pop_std
 
         X_train = train_features[FEATURE_COLS].values
         y_train = train_data_aug['VT_label_3class'].values
@@ -259,9 +278,13 @@ def run_loso(classification_data, subjects):
 def main():
     data, subjects = load_data('data/test_measure.csv', 'data/subject-info.csv')
 
+    data = replace_missing_beats(data)            # clean all beats first (including resting)
+    resting_data = extract_resting_intervals(data)
+    resting_windows = create_resting_windows(resting_data, n=WINDOW_SIZE)
+    print(f"Resting windows: {len(resting_windows)}/{len(subjects)} subjects")
+
     data = remove_pre_post_periods(data)
     data = mark_thresholds(data, subjects)
-    data = replace_missing_beats(data)
     data.to_csv('data/cleaned_test_measure.csv', index=False)
     plot_subject_data(data)
     data = label_rr_intervals(data)
@@ -277,7 +300,9 @@ def main():
     label_counts = {c: int(classification_data[c].sum()) for c in ['Sub_vt1', 'Mid_vt', 'Supra_vt2']}
     print(f"Classification dataset label counts (stride={STRIDE}): {label_counts}")
 
-    all_y_true, all_y_pred, importances, thresholds = run_loso(classification_data, subjects)
+    all_y_true, all_y_pred, importances, thresholds = run_loso(
+        classification_data, subjects, resting_windows
+    )
 
     for name in MODELS:
         y_true = np.array(all_y_true[name])
@@ -294,7 +319,52 @@ def main():
         print(f"--- Threshold Estimation: {name} ---")
         print(tdf.to_string(index=False))
         print(f"MAE — VT1: {tdf['vt1_err_W'].mean():.1f}W   VT2: {tdf['vt2_err_W'].mean():.1f}W")
-        tdf.to_csv(f'data/threshold_estimates_{name.lower()}.csv', index=False)
+        tdf.to_csv(f'plots/results/threshold_estimates_{name.lower()}.csv', index=False)
+
+    save_final_models(classification_data, resting_windows)
+
+
+# ---------------------------------------------------------------------------
+# Final model — trained on all subjects for inference
+# ---------------------------------------------------------------------------
+
+def save_final_models(classification_data, resting_windows):
+    """Train on all subjects and save models + normalization stats for inference."""
+    os.makedirs('models', exist_ok=True)
+
+    base_cols = ['ID', 'power', 'RR', 'Sub_vt1', 'Mid_vt', 'Supra_vt2']
+    train_data = classification_data[base_cols].copy()
+    train_data_aug = create_additional_intervals(train_data)
+    train_data_aug['VT_label_3class'] = (
+        train_data_aug[['Sub_vt1', 'Mid_vt', 'Supra_vt2']].idxmax(axis=1)
+    )
+
+    train_features = extract_hrv_features(train_data_aug, FEATURE_COLS)
+
+    X = train_features[FEATURE_COLS].values
+    y = train_data_aug['VT_label_3class'].values
+
+    with open('models/feature_cols.json', 'w') as f:
+        json.dump(FEATURE_COLS, f)
+
+    rf = RandomForestClassifier(
+        n_estimators=300, max_depth=None, class_weight='balanced', random_state=42
+    )
+    rf.fit(X, y)
+    joblib.dump(rf, 'models/rf_final.pkl')
+
+    le = LabelEncoder()
+    y_enc = le.fit_transform(y)
+    sw = compute_sample_weight('balanced', y_enc)
+    xgb = XGBClassifier(
+        n_estimators=300, learning_rate=0.1, max_depth=6,
+        subsample=0.8, colsample_bytree=0.8,
+        eval_metric='mlogloss', random_state=42
+    )
+    xgb.fit(X, y_enc, sample_weight=sw)
+    joblib.dump({'model': xgb, 'label_encoder': le}, 'models/xgboost_final.pkl')
+
+    print(f"Final models saved to models/  (features: {FEATURE_COLS})")
 
 
 if __name__ == '__main__':
