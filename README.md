@@ -1,5 +1,7 @@
 # HRV-Based Exercise Threshold Estimation
 
+**Live app: [exercise-threshold-estimation-using-hrv.streamlit.app](https://exercise-threshold-estimation-using-hrv-gfhaeaqkzvats74maym8dt.streamlit.app/)** — upload a test and get VT1/VT2 estimates in the browser.
+
 ## Overview
 This project investigates using **heart rate variability (HRV)** to automatically identify **ventilatory thresholds (VT1 and VT2)** from a graded exercise test — without gas exchange measurements. Given raw RR interval data from a test, the model outputs the estimated power and heart rate at which each threshold occurs.
 
@@ -104,6 +106,18 @@ FEATURES = {
 ```
 
 After changing features, re-run `main.py` to retrain and overwrite the saved models. The inference script always reads `models/feature_cols.json` to stay consistent with whatever was used at training time.
+
+## Web App
+
+A Streamlit app wraps the same `estimate_thresholds_from_data()` pipeline in a browser UI — upload a test file, pick a model, and get VT1/VT2 power and heart rate plus an RR/power plot with the thresholds marked.
+
+Live: **https://exercise-threshold-estimation-using-hrv-gfhaeaqkzvats74maym8dt.streamlit.app/**
+
+Run locally:
+
+```bash
+uv run streamlit run streamlit_app.py
+```
 
 ## API
 
