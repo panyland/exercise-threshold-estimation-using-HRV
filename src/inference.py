@@ -17,6 +17,7 @@ Usage:
 
 import argparse
 import json
+import logging
 import os
 import sys
 
@@ -35,7 +36,13 @@ from preprocessing import (
 )
 from feature_extraction import extract_hrv_features
 
+logger = logging.getLogger(__name__)
+
 WINDOW_SIZE = 100
+
+
+class InferenceError(Exception):
+    """Raised when input data can't be turned into threshold estimates (bad columns, too few beats, etc.)."""
 
 
 def estimate_thresholds(windows, probas, classes):
@@ -85,7 +92,7 @@ def estimate_thresholds(windows, probas, classes):
 def load_model(model_name, models_dir):
     feature_cols_path = os.path.join(models_dir, 'feature_cols.json')
     if not os.path.exists(feature_cols_path):
-        sys.exit(f"No trained models found in {models_dir}/. Run main.py first.")
+        raise InferenceError(f"No trained models found in {models_dir}/. Run main.py first.")
 
     with open(feature_cols_path) as f:
         feature_cols = json.load(f)
@@ -98,20 +105,26 @@ def load_model(model_name, models_dir):
 
     model_path = os.path.join(models_dir, f'{model_name}_final.pkl')
     if not os.path.exists(model_path):
-        sys.exit(f"Model file not found: {model_path}. Run main.py first.")
+        raise InferenceError(f"Model file not found: {model_path}. Run main.py first.")
 
     return joblib.load(model_path), feature_cols, norm_stats
 
 
-def run_inference(csv_path, model_name='rf', output_path=None, models_dir='models'):
-    bundle, feature_cols, norm_stats = load_model(model_name, models_dir)
+def estimate_thresholds_from_data(data, model_name='rf', models_dir='models'):
+    """
+    Core pipeline: a beat-level DataFrame (columns: time, RR, power) -> (vt1_power, vt1_hr, vt2_power, vt2_hr).
 
-    data = pd.read_csv(csv_path)
+    No file I/O and no printing — raises InferenceError on invalid/insufficient input so
+    callers (CLI, API, tests) can decide how to surface it.
+    """
     required = {'time', 'RR', 'power'}
     missing = required - set(data.columns)
     if missing:
-        sys.exit(f"Input CSV is missing columns: {missing}")
+        raise InferenceError(f"Input data is missing columns: {sorted(missing)}")
 
+    bundle, feature_cols, norm_stats = load_model(model_name, models_dir)
+
+    data = data.copy()
     data['ID'] = 'subject'
     data = replace_missing_beats(data)            # clean before extracting rest
     resting_raw = extract_resting_intervals(data)
@@ -124,7 +137,7 @@ def run_inference(csv_path, model_name='rf', output_path=None, models_dir='model
 
     windows = create_classification_dataset(data, n=WINDOW_SIZE, stride=None)
     if len(windows) == 0:
-        sys.exit(
+        raise InferenceError(
             "No valid windows found. Each power step needs at least "
             f"{WINDOW_SIZE} consecutive beats."
         )
@@ -134,8 +147,8 @@ def run_inference(csv_path, model_name='rf', output_path=None, models_dir='model
     # Apply resting-based normalization if the model was trained with it
     if norm_stats is not None:
         if len(resting_windows) == 0:
-            print("Warning: no resting beats found (power == 0 before exercise). "
-                  "Normalization skipped — results may be less accurate.")
+            logger.warning("No resting beats found (power == 0 before exercise). "
+                            "Normalization skipped — results may be less accurate.")
         else:
             rest_feats = extract_hrv_features(resting_windows, feature_cols)
             rest_mean = rest_feats[feature_cols].iloc[0]
@@ -152,7 +165,15 @@ def run_inference(csv_path, model_name='rf', output_path=None, models_dir='model
         probas  = bundle['model'].predict_proba(X)
         classes = bundle['label_encoder'].classes_
 
-    vt1_power, vt1_hr, vt2_power, vt2_hr = estimate_thresholds(windows, probas, classes)
+    return estimate_thresholds(windows, probas, classes)
+
+
+def run_inference(csv_path, model_name='rf', output_path=None, models_dir='models'):
+    data = pd.read_csv(csv_path)
+    try:
+        vt1_power, vt1_hr, vt2_power, vt2_hr = estimate_thresholds_from_data(data, model_name, models_dir)
+    except InferenceError as e:
+        sys.exit(str(e))
 
     print("\n=== Threshold Estimates ===")
     if vt1_power is not None:

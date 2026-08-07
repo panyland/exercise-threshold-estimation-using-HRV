@@ -40,9 +40,6 @@ FEATURES = {
     'poincare_sd1': True,
     'poincare_sd2': True,
     'dfa_alpha1':   True,
-    'lf_power':     False,   # frequency domain — interpolated; may be noisy during exercise
-    'hf_power':     False,
-    'lf_hf_ratio':  False,
 }
 FEATURE_COLS = [k for k, v in FEATURES.items() if v]
 

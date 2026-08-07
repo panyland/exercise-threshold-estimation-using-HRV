@@ -100,16 +100,55 @@ FEATURES = {
     'poincare_sd1': True,
     'poincare_sd2': True,
     'dfa_alpha1':   True,
-    'lf_power':     False,   # frequency domain (interpolated)
-    'hf_power':     False,
-    'lf_hf_ratio':  False,
 }
 ```
 
 After changing features, re-run `main.py` to retrain and overwrite the saved models. The inference script always reads `models/feature_cols.json` to stay consistent with whatever was used at training time.
 
-## What's Next
-- Add mean RR interval (heart rate proxy) as a feature
-- Per-subject normalization by pre-test resting baseline
-- Two-stage classifier (Sub-VT1 vs above → Mid-VT vs Supra-VT2)
-- Validation on a larger, better-controlled dataset
+## API
+
+A FastAPI service exposes the same inference pipeline over HTTP, for use by a future frontend or any other client. It wraps `estimate_thresholds_from_data()` in `src/inference.py` — the same function the CLI uses — so results are identical to `src/inference.py`.
+
+### Running locally
+
+```bash
+uv run uvicorn api.main:app --reload
+```
+
+Interactive docs (try requests straight from the browser): http://localhost:8000/docs
+
+### Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Liveness check — returns `{"status": "ok"}` |
+| `/predict` | POST | Upload a test file, get VT1/VT2 estimates |
+
+`/predict` takes `multipart/form-data`:
+- `file` — a `.csv`, `.xls`, or `.xlsx` with the same `time`/`RR`/`power` columns described under [Input format](#input-format)
+- `model` — `"rf"` (default) or `"xgboost"`
+
+Response:
+```json
+{"vt1_power_W": 175.0, "vt1_hr_bpm": 148.0, "vt2_power_W": 245.0, "vt2_hr_bpm": 167.0}
+```
+Fields are `null` if a threshold wasn't detected. Invalid input (bad columns, wrong file type, too few beats per power step) returns a `400` with an error message in `detail`.
+
+```bash
+curl -X POST http://localhost:8000/predict \
+  -F "file=@path/to/test.csv" \
+  -F "model=rf"
+```
+
+### Tests
+
+```bash
+uv run pytest api/tests -v
+```
+
+### Docker
+
+```bash
+docker build -t hrv-api .
+docker run -p 8000:8000 hrv-api
+```

@@ -19,24 +19,6 @@ def calculate_poincare_sd(rr):
     return float(hrv_nonlinear['HRV_SD1'].iloc[0]), float(hrv_nonlinear['HRV_SD2'].iloc[0])
 
 
-def calculate_frequency_domain(rr):
-    """
-    LF power (0.04–0.15 Hz), HF power (0.15–0.4 Hz), LF/HF ratio.
-    neurokit2 interpolates the uneven RR series to a uniform grid internally.
-    Returns NaN for any value that cannot be computed (e.g. stationarity failure
-    during high-intensity exercise).
-    """
-    try:
-        peaks = nk.intervals_to_peaks(rr.tolist())
-        hrv_freq = nk.hrv_frequency(peaks, sampling_rate=1000, show=False)
-        lf    = float(hrv_freq['HRV_LF'].iloc[0])
-        hf    = float(hrv_freq['HRV_HF'].iloc[0])
-        lf_hf = float(hrv_freq['HRV_LFHF'].iloc[0])
-    except Exception:
-        lf, hf, lf_hf = float('nan'), float('nan'), float('nan')
-    return lf, hf, lf_hf
-
-
 def compute_features(rr, feature_set):
     rr = np.asarray(rr)
     features = {}
@@ -57,14 +39,6 @@ def compute_features(rr, feature_set):
             features['poincare_sd2'] = sd2
     if 'dfa_alpha1' in feature_set:
         features['dfa_alpha1'] = calculate_dfa_alpha1(rr)
-    if {'lf_power', 'hf_power', 'lf_hf_ratio'} & feature_set:
-        lf, hf, lf_hf = calculate_frequency_domain(rr)
-        if 'lf_power' in feature_set:
-            features['lf_power'] = lf
-        if 'hf_power' in feature_set:
-            features['hf_power'] = hf
-        if 'lf_hf_ratio' in feature_set:
-            features['lf_hf_ratio'] = lf_hf
 
     return features
 

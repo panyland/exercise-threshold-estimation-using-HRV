@@ -5,12 +5,25 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.141.1",
     "matplotlib>=3.10.6",
     "neurokit2>=0.2.12",
     "nolds>=0.6.2",
     "numpy>=2.3.3",
+    "openpyxl>=3.1.5",
     "pandas>=2.3.3",
+    "python-multipart>=0.0.32",
     "scikit-learn>=1.7.2",
     "seaborn>=0.13.2",
+    "uvicorn[standard]>=0.52.1",
     "xgboost>=3.2.0",
 ]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
