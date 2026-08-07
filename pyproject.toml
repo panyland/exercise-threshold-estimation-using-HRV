@@ -15,6 +15,7 @@ dependencies = [
     "python-multipart>=0.0.32",
     "scikit-learn>=1.7.2",
     "seaborn>=0.13.2",
+    "streamlit>=1.51.0",
     "uvicorn[standard]>=0.52.1",
     "xgboost>=3.2.0",
 ]
